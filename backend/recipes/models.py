@@ -158,7 +158,8 @@ class ShoppingCart(models.Model):
 
     def str(self):
         list_ = [item.name for item in self.recipe.all()]
-        return f'Пользователь {self.user} добавил {[item for item in list_]} в корзину.'
+        return f'Пользователь {self.user} добавил {[item for item in list_]}'\
+            'в корзину.'
 
 
 class Favorite(models.Model):
@@ -186,4 +187,5 @@ class Favorite(models.Model):
 
     def str(self):
         list_ = [item.name for item in self.recipe.all()]
-        return f'Пользователь {self.user} добавил {[item for item in list_]} в избранные.'
+        return f'Пользователь {self.user} добавил {[item for item in list_]}'\
+            'в избранные.'

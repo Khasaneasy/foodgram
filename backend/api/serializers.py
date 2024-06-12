@@ -164,21 +164,28 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
         )
         validators = [
             UniqueTogetherValidator(
-                queryset=RecipeIngredient.objects.all(), fields=['ingredient', 'recipe']
+                queryset=RecipeIngredient.objects.all(),
+                fields=['ingredient', 'recipe']
             )
         ]
 
 
 class RecipeSerializer(serializers.ModelSerializer):
-    author = CustomUserSerializer(required=False, read_only=True)
-    tags = TagSerializer(many=True, read_only=True)
+    author = CustomUserSerializer(
+        required=False,
+        read_only=True)
+    tags = TagSerializer(
+        many=True,
+        read_only=True)
     image = Base64ImageField()
     ingredients = serializers.SerializerMethodField()
     is_favorited = serializers.BooleanField(
-         read_only=True, default=False
+        read_only=True,
+        default=False
     )
     is_in_shopping_cart = serializers.BooleanField(
-         read_only=True, default=False
+        read_only=True,
+        default=False
     )
 
     class Meta:
@@ -206,7 +213,8 @@ class RecipeSerializer(serializers.ModelSerializer):
                 'id': recipe_ingredient.ingredient.id,
                 'name': recipe_ingredient.ingredient.name,
                 'amount': recipe_ingredient.amount,
-                'measurement_unit': recipe_ingredient.ingredient.measurement_unit,
+                'measurement_unit':
+                recipe_ingredient.ingredient.measurement_unit,
             }
             for recipe_ingredient in recipe_ingredients
         ]

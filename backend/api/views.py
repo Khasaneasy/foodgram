@@ -140,11 +140,9 @@ class CustomUserViewSet(UserViewSet):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    @action(
-            ['get'],
+    @action(['get'],
             detail=False,
-            permission_classes=(IsAuthenticatedOrReadOnly,)
-        )
+            permission_classes=(IsAuthenticatedOrReadOnly,))
     def subscriptions(self, request, *args, **kwargs):
         user = request.user
         subscriptions = Subscribe.objects.filter(follower=user)
@@ -225,7 +223,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
                 data={'errors': 'Указанного рецепта не существует'}
             )
         if model.objects.filter(recipe=recipe, user=user).exists():
-            model_name = 'список покупок' if model == ShoppingCart else 'избранное'
+            model_name = 'список покупок' if model == ShoppingCart else \
+                'избранное'
             return Response(
                 {'errors': f'Рецепт уже добавлен в {model_name}'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -260,11 +259,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
             data={f'errors: Рецепт не был добавлен в {model_name}'},
         )
 
-    @action(
-            methods=['POST'],
+    @action(methods=['POST'],
             detail=True,
-            permission_classes=(IsAuthenticated,)
-        )
+            permission_classes=(IsAuthenticated,))
     def shopping_cart(self, request, pk=None):
         return self.add_recipe(request, ShoppingCart, pk)
 
@@ -272,20 +269,16 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def delete_shopping_cart(self, request, pk=None):
         return self.remove_recipe(request, ShoppingCart, pk)
 
-    @action(
-            ['get'],
+    @action(['get'],
             permission_classes=(permissions.IsAuthenticated,),
-            detail=False
-        )
+            detail=False)
     def download_shopping_cart(self, request, *args, **kwargs):
         file = create_pdf(request.user)
         return file
 
-    @action(
-            methods=['POST'],
+    @action(methods=['POST'],
             detail=True,
-            permission_classes=(IsAuthenticated,)
-        )
+            permission_classes=(IsAuthenticated,))
     def favorite(self, request, pk=None):
         return self.add_recipe(request, Favorite, pk)
 
