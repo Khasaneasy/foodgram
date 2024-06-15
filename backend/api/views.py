@@ -1,41 +1,29 @@
 import base64
 import os
-import shortener
+import shortuuid
 
+from shortener.models import Url
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
-from djoser.views import UserViewSet
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import permissions, status, viewsets, mixins
+from djoser.views import UserViewSet
+from recipes.models import Favorite, Ingredient, Recipe, ShoppingCart, Tag
+from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import (
-    IsAuthenticated,
-    IsAuthenticatedOrReadOnly)
+from rest_framework.permissions import (IsAuthenticated,
+                                        IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
-
-from recipes.models import (
-    Favorite,
-    Ingredient,
-    Recipe,
-    ShoppingCart,
-    Tag,
-)
 from users.models import Subscribe
+
 from .downcart import create_pdf
 from .filters import RecipeFilter
 from .mixins import ListRetrieveModelMixin
-from .permissions import IsAuthorOrReadOnlyPermission
 from .pagination import PageLimitPagination
-from .serializers import (
-    AvatarSerializer,
-    IngredientSerializer,
-    RecipeCreateSerializer,
-    SubscribeSerializer,
-    ShoppingCartSerializer,
-    TagSerializer,
-)
-
+from .permissions import IsAuthorOrReadOnlyPermission
+from .serializers import (AvatarSerializer, IngredientSerializer,
+                          RecipeCreateSerializer, ShoppingCartSerializer,
+                          SubscribeSerializer, TagSerializer)
 
 User = get_user_model()
 
@@ -43,13 +31,10 @@ User = get_user_model()
 class CustomUserViewSet(UserViewSet):
     pagination_class = PageLimitPagination
 
-    @action(
-        ['get', 'put', 'patch', 'delete'],
-        detail=False,
-        permission_classes=(IsAuthenticated,),
-    )
-    def me(self, request, *args, **kwargs):
-        return super().me(request, *args, **kwargs)
+    def get_permissions(self):
+        if self.action in ['retrieve', 'list']:
+            return (permissions.IsAuthenticatedOrReadOnly(), )
+        return super().get_permissions()
 
     @action(
         methods=['PUT', 'DELETE'],
@@ -196,17 +181,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
-    @action(
-        detail=True,
-        permission_classes=(permissions.IsAuthenticatedOrReadOnly,),
-        url_path='get-link',
-        url_name='get-link',
-    )
-    def get_link(self, request, pk=None):
-        original_url = request.build_absolute_uri(f'/api/recipes/{pk}/')
-        short_link = shortener.create(request.user, original_url)
-        return Response({'short-link': short_link})
-
     def add_recipe(self, request, model, pk=None):
 
         user = request.user
@@ -285,6 +259,15 @@ class RecipeViewSet(viewsets.ModelViewSet):
     @favorite.mapping.delete
     def del_favorite(self, request, pk=None):
         return self.remove_recipe(request, Favorite, pk)
+
+    @action(detail=True, methods=['get'], url_path='get-link')
+    def get_link(self, request, pk=None):
+        recipe = self.get_object()
+        long_url = request.build_absolute_uri(f'/recipes/{recipe.pk}/')
+        short_id = shortuuid.uuid()[:6]
+        short_url = Url.objects.create(long_url=long_url, short_id=short_id)
+        short_link = request.build_absolute_uri(f'/s/{short_url.short_id}/')
+        return Response({'short-link': short_link}, status=status.HTTP_200_OK)
 
 
 class SubscribeViewSet(

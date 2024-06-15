@@ -1,9 +1,10 @@
 from drf_base64.fields import Base64ImageField
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from djoser.serializers import UserSerializer
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
+
 
 from recipes.models import (
     Favorite,
@@ -267,15 +268,19 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def create_bulk_ing_tag(self, recipe, ingredients):
-        RecipeIngredient.objects.bulk_create(
-            [
-                RecipeIngredient(
-                    recipe=recipe,
-                    amount=ing['amount'],
-                    ingredient=Ingredient.objects.get(id=ing['id']),
-                ) for ing in ingredients
-            ]
-        )
+        try:
+            RecipeIngredient.objects.bulk_create(
+                [
+                    RecipeIngredient(
+                        recipe=recipe,
+                        amount=ing['amount'],
+                        ingredient=Ingredient.objects.get(id=ing['id']),
+                    ) for ing in ingredients
+                ]
+            )
+        except IntegrityError:
+            raise serializers.ValidationError(
+                'Ингредиент с таким рецептом уже существует.')
 
     def validate(self, data):
         ingredients = data.get('ingredients', [])
@@ -284,20 +289,32 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         if not tags:
             raise serializers.ValidationError('Добавьте тег')
         if not ingredients:
-            raise serializers.ValidationError('Добавьте ингрудиент')
-        if len(tags) == 0:
-            raise serializers.ValidationError(
-                'Поле "tags" не должно быть пустым.'
-            )
-        existing_ids = set(Ingredient.objects.values_list(
-            'id', flat=True)
-        )
+            raise serializers.ValidationError('Добавьте ингредиент')
+
+        # Проверка на дублирование тегов
+        seen_tags = set()
+        for tag in tags:
+            if tag.id in seen_tags:
+                raise serializers.ValidationError(
+                    f'Тег с id {tag.id} добавлен более одного раза.'
+                )
+            seen_tags.add(tag.id)
+
+        seen_ingredients = set()
+        existing_ids = set(Ingredient.objects.values_list('id', flat=True))
+
         for ingredient_data in ingredients:
             ing_id = ingredient_data.get('id')
             if ing_id not in existing_ids:
                 raise serializers.ValidationError(
                     f'Ингредиент с id {ing_id} не существует.'
                 )
+            if ing_id in seen_ingredients:
+                raise serializers.ValidationError(
+                    f'Ингредиент с id {ing_id} добавлен более одного раза.'
+                )
+            seen_ingredients.add(ing_id)
+
             amount = ingredient_data.get('amount')
             try:
                 amount = int(amount)

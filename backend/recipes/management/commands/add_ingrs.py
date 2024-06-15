@@ -5,7 +5,6 @@ import os
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db.utils import IntegrityError
-
 from recipes.models import Ingredient
 
 
