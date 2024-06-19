@@ -15,7 +15,7 @@ DEBUG = os.getenv("DEBUG", 'False').lower() != 'false'
 
 ALLOWED_HOSTS = os.getenv('HOSTS', default='DEFAULT_HOST').split()
 
-AUTH_USER_MODEL = 'users.CustomUser'
+AUTH_USER_MODEL = 'users.Profile'
 
 
 INSTALLED_APPS = [
@@ -144,8 +144,8 @@ DJOSER = {
     'LOGIN_FIELD': 'email',
     'HIDE_USERS': False,
     'SERIALIZERS': {
-        'user': 'api.serializers.CustomUserSerializer',
-        'current_user': 'api.serializers.CustomUserSerializer',
+        'user': 'api.serializers.ProfileUserSerializer',
+        'current_user': 'api.serializers.ProfileUserSerializer',
     },
     'PERMISSIONS': {
         'user': ('rest_framework.permissions.IsAuthenticated',),

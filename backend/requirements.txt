@@ -1,4 +1,4 @@
-flake8
+flake8==6.0.0
 Django==4.2.13
 djangorestframework>=3.15.1
 sqlparse>=0.4.4
@@ -11,8 +11,9 @@ django-filter==24.2
 drf-extra-fields==3.7.0
 reportlab==4.2.0
 drf_base64==2.0
-fpdf
+fpdf==1.7.2
 django-cors-headers==3.13.0
 psycopg2-binary==2.9.3 
-shortener
-shortuuid
+shortener==0.2.1
+shortuuid==1.0.13
+gunicorn==20.1.0

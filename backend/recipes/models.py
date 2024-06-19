@@ -1,24 +1,30 @@
 from django.contrib.auth import get_user_model
 from django.core import validators
 from django.db import models
+from django.db.models import Exists, OuterRef
+
+from .constants import (
+    COOKING_TIME, INGREDIENT_AMOUNT,
+    INGRS_NAME_LENGTH, MEASUREMENTS,
+    RECIPE_NAME_LENGTH, TAG_NAME_LENGTH, TAG_SLUG)
 
 User = get_user_model()
 
 
 class Tag(models.Model):
     name = models.CharField(
-        max_length=32,
+        max_length=TAG_NAME_LENGTH,
         unique=True,
         verbose_name='Название')
     slug = models.SlugField(
-        max_length=32,
+        max_length=TAG_SLUG,
         unique=True,
         verbose_name='Слаг')
 
     class Meta:
         verbose_name = 'Тег'
         verbose_name_plural = 'Теги'
-        ordering = ['id']
+        ordering = ['name']
 
     def __str__(self):
         return self.name
@@ -26,23 +32,50 @@ class Tag(models.Model):
 
 class Ingredient(models.Model):
     name = models.CharField(
-        max_length=128,
+        max_length=INGRS_NAME_LENGTH,
         verbose_name='Название')
     measurement_unit = models.CharField(
-        max_length=64,
+        max_length=MEASUREMENTS,
         verbose_name='Единица измерения')
 
     class Meta:
         verbose_name = 'Ингридиент'
         verbose_name_plural = 'Ингридиенты'
+        ordering = ['name']
+        unique_together = ('name', 'measurement_unit')
 
     def __str__(self):
-        return self.name
+        return f'{self.name}, {self.measurement_unit}'
+
+
+class RecipeQuerySet(models.QuerySet):
+    def get_is_favorited_is_in_shopping_cart(self, request_user):
+        if request_user.is_authenticated:
+            self = self.annotate(
+                is_favorited=Exists(
+                    Favorite.objects.filter(
+                        user=request_user,
+                        recipe=OuterRef('pk')
+                    )
+                ),
+                is_in_shopping_cart=Exists(
+                    ShoppingCart.objects.filter(
+                        user=request_user,
+                        recipe=OuterRef('pk')
+                    )
+                ),
+            )
+        else:
+            self = self.annotate(
+                is_favorited=Exists(Favorite.objects.none()),
+                is_in_shopping_cart=Exists(ShoppingCart.objects.none()),
+            )
+        return self
 
 
 class Recipe(models.Model):
     name = models.CharField(
-        max_length=256,
+        max_length=RECIPE_NAME_LENGTH,
         verbose_name='Название'
     )
     text = models.TextField(
@@ -51,20 +84,9 @@ class Recipe(models.Model):
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
+        null=True,
         related_name='authored_recipes',
         verbose_name='Автор'
-    )
-    is_favorited = models.ManyToManyField(
-        User,
-        through='Favorite',
-        related_name='favorited_recipes',
-        verbose_name='В избранном'
-    )
-    is_in_shopping_cart = models.ManyToManyField(
-        User,
-        through='ShoppingCart',
-        related_name='shopping_cart_recipes',
-        verbose_name='В корзине',
     )
     ingredients = models.ManyToManyField(
         Ingredient,
@@ -80,10 +102,9 @@ class Recipe(models.Model):
         verbose_name='Картинка'
     )
     cooking_time = models.PositiveSmallIntegerField(
-        blank=False,
         validators=[validators.MinValueValidator(
-            1,
-            message='Минимальное время приготовления 1 минута')],
+            COOKING_TIME,
+            message=f'Минимальное значение {COOKING_TIME}!')],
         verbose_name='Время приготовления'
     )
     pub_date = models.DateTimeField(
@@ -91,6 +112,7 @@ class Recipe(models.Model):
         auto_now_add=True,
         null=True
     )
+    objects = RecipeQuerySet.as_manager()
 
     class Meta:
         verbose_name = 'Рецепт'
@@ -113,17 +135,18 @@ class RecipeIngredient(models.Model):
         related_name='ingredient_recipes'
     )
     amount = models.PositiveSmallIntegerField(
-        default=1,
-        validators=(
+        default=COOKING_TIME,
+        validators=[
             validators.MinValueValidator(
-                1, message='Минмальное количество ингридиентов 1'),),
+                INGREDIENT_AMOUNT,
+                message=f'Минимальное значение {INGREDIENT_AMOUNT}!')],
         verbose_name='Количество',
     )
 
     class Meta:
         verbose_name = 'Количество ингредиента'
         verbose_name_plural = 'Количество ингредиентов'
-        ordering = ['-id']
+        ordering = ['amount']
         constraints = [
             models.UniqueConstraint(
                 fields=['recipe', 'ingredient'],
@@ -150,15 +173,14 @@ class ShoppingCart(models.Model):
     class Meta:
         verbose_name = 'Корзина',
         verbose_name_plural = 'Корзина'
-        constraints = (
+        ordering = ('user',)
+        constraints = [
             models.UniqueConstraint(fields=('user', 'recipe'),
                                     name='user_recipe_shopping_cart_unique'),
-        )
+        ]
 
-    def str(self):
-        list_ = [item.name for item in self.recipe.all()]
-        return f'Пользователь {self.user} добавил {[item for item in list_]}'\
-            'в корзину.'
+    def __str__(self):
+        return f'{self.user} добавил "{self.recipe}" в Корзину покупок'
 
 
 class Favorite(models.Model):
@@ -179,12 +201,10 @@ class Favorite(models.Model):
         ordering = ('user',)
         verbose_name = 'Избранное'
         verbose_name_plural = 'Избранное'
-        constraints = (
+        constraints = [
             models.UniqueConstraint(fields=('user', 'recipe'),
                                     name='user_recipe_favorite_unique'),
-        )
+        ]
 
-    def str(self):
-        list_ = [item.name for item in self.recipe.all()]
-        return f'Пользователь {self.user} добавил {[item for item in list_]}'\
-            'в избранные.'
+    def __str__(self):
+        return f'{self.user} добавил "{self.recipe}" в Избранное'

@@ -1,9 +1,10 @@
 from io import BytesIO
 
 from django.http import FileResponse
-from recipes.models import RecipeIngredient
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+
+from recipes.models import RecipeIngredient
 
 
 def create_pdf(user):
