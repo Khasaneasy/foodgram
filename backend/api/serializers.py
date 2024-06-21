@@ -2,8 +2,9 @@ from drf_base64.fields import Base64ImageField
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework.relations import PrimaryKeyRelatedField
-from djoser.serializers import UserSerializer
 from rest_framework import serializers
+
+from djoser.serializers import UserSerializer
 
 from .constants import COOK_TIME, COOKING_QUANITY, INGREDIENT_QUANITY
 from recipes.models import (
@@ -44,9 +45,8 @@ class ProfileUserSerializer(UserSerializer):
 
     def get_is_subscribed(self, obj):
         user = self.context.get('request').user
-        if user.is_authenticated:
-            return obj.following.filter(follower=user).exists()
-        return False
+        return user.is_authenticated and obj.following.filter(
+            follower=user).exists()
 
     def validate(self, data):
         if 'first_name' not in data or 'last_name' not in data:
@@ -71,83 +71,44 @@ class SubscribeSerializer(serializers.ModelSerializer):
     def validate(self, data):
         follower = data['follower']
         following = data['following']
+
         if follower == following:
             raise serializers.ValidationError('Нельзя подписаться на себя')
-        return data
 
-    def create(self, validated_data):
-        follower = validated_data['follower']
-        following = validated_data['following']
-        subscription, created = Subscribe.objects.get_or_create(
-            follower=follower, following=following
-        )
-        if not created:
+        if Subscribe.objects.filter(follower=follower,
+                                    following=following).exists():
             raise serializers.ValidationError('Вы уже подписаны')
-        return subscription
+
+        return data
 
     def to_representation(self, instance):
         return SubscriberSerializer(
-            instance.following,
-            context=self.context
+            instance.following, context=self.context
         ).data
 
 
-class SubscriberSerializer(serializers.ModelSerializer):
-    id = serializers.ReadOnlyField(
-        source='following.id'
-    )
-    email = serializers.ReadOnlyField(
-        source='following.email'
-    )
-    username = serializers.ReadOnlyField(
-        source='following.username'
-    )
-    first_name = serializers.ReadOnlyField(
-        source='following.first_name'
-    )
-    last_name = serializers.ReadOnlyField(
-        source='following.last_name'
-    )
-    avatar = serializers.SerializerMethodField()
-    is_subscribed = serializers.SerializerMethodField()
-    recipes_count = serializers.SerializerMethodField()
-    recipes = serializers.SerializerMethodField()
+class SubscriberSerializer(ProfileUserSerializer):
+    recipes_count = serializers.SerializerMethodField('get_recipes_count')
+    recipes = serializers.SerializerMethodField('get_recipes')
 
-    class Meta:
-        model = Subscribe
-        fields = (
-            'id',
-            'email',
-            'username',
-            'first_name',
-            'last_name',
-            'is_subscribed',
+    class Meta(ProfileUserSerializer.Meta):
+        fields = ProfileUserSerializer.Meta.fields + (
             'recipes',
-            'recipes_count',
-            'avatar'
+            'recipes_count'
         )
-
-    def get_is_subscribed(self, obj):
-        user = self.context['request'].user
-        return Subscribe.objects.filter(
-            follower=user,
-            following=obj.following
-        ).exists()
+    # так же тут не смог разобраться , даже дебаг не смог запустить так как
+    # начинает ругаться на 7ю строку файла как обойти и продолжить дебажить не
+    # понял в пачке тихо ответы не откуда брать.
 
     def get_recipes(self, obj):
-        request = self.context.get('request')
-        limit = request.GET.get('recipes_limit')
-        queryset = Recipe.objects.filter(author=obj.following)
-        if limit:
-            queryset = queryset[:int(limit)]
-        return RecipeDetailSerializer(
-            queryset,
-            many=True,
-            context={'request': request}
-        ).data
+        recipes_limit = self.context.get('recipes_limit')
+        recipes = Recipe.objects.filter(author=obj)
+        if recipes_limit:
+            recipes = recipes[: int(recipes_limit)]
+        return RecipeDetailSerializer(recipes, many=True).data
 
     def get_recipes_count(self, obj):
-        return Recipe.objects.filter(author=obj.following).count()
+        return obj.recipes.count()
 
     def get_avatar(self, obj):
         if obj.following.avatar:
@@ -213,14 +174,8 @@ class RecipeSerializer(serializers.ModelSerializer):
         many=True
     )
 
-    is_favorited = serializers.BooleanField(
-        read_only=True,
-        default=False
-    )
-    is_in_shopping_cart = serializers.BooleanField(
-        read_only=True,
-        default=False
-    )
+    is_favorited = serializers.SerializerMethodField()
+    is_in_shopping_cart = serializers.SerializerMethodField()
 
     class Meta:
         model = Recipe
@@ -237,7 +192,7 @@ class RecipeSerializer(serializers.ModelSerializer):
     def get_is_in_shopping_cart(self, obj):
         request = self.context.get('request')
         return (request and request.user.is_authenticated
-                and obj.shopping_cart.filter(user=request.user).exists())
+                and obj.shopping_carts.filter(user=request.user).exists())
 
 
 class RecipeCreateSerializer(serializers.ModelSerializer):
@@ -317,13 +272,13 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
 
             if amount <= INGREDIENT_QUANITY:
                 raise serializers.ValidationError(
-                    f'Количество ингредиента'
-                    f'должно быть больше {INGREDIENT_QUANITY}.'
+                    'Количество ингредиента должно быть больше'
+                    f'{INGREDIENT_QUANITY}.'
                 )
 
         if data.get('cooking_time', COOKING_QUANITY) < COOK_TIME:
             raise serializers.ValidationError(
-                f'Время готовки должно быть больше {COOK_TIME} минуты.'
+                'Время готовки должно быть больше {COOK_TIME} минуты.'
             )
 
         return data
@@ -331,7 +286,7 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def create(self, validated_data):
         ingredients_data = validated_data.pop('ingredients')
-        tags_data = validated_data.pop('tags', [])
+        tags_data = validated_data.pop('tags')
         recipe = Recipe.objects.create(**validated_data)
         self.create_bulk_ing_tag(recipe, ingredients_data)
         recipe.tags.set(tags_data)
@@ -340,15 +295,13 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def update(self, instance, validated_data):
         ingredients_data = validated_data.pop('ingredients')
-        tags_data = validated_data.pop('tags', [])
-        instance = super().update(instance, validated_data)
+        tags_data = validated_data.pop('tags')
 
         instance.tags.set(tags_data)
         RecipeIngredient.objects.filter(recipe=instance).delete()
         self.create_bulk_ing_tag(instance, ingredients_data)
 
-        instance.save()
-        return instance
+        return super().update(instance, validated_data)
 
     def to_representation(self, instance):
         return RecipeSerializer(instance, context={

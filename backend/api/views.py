@@ -2,29 +2,30 @@ import base64
 import os
 import shortuuid
 
-from shortener.models import Url
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet
-from rest_framework import permissions, status, viewsets
+from http import HTTPStatus
+from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import (IsAuthenticated,
                                         IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
-from recipes.models import Favorite, Ingredient, Recipe, ShoppingCart, Tag
-from users.models import Subscribe
+from shortener.models import Url
 
 from .downcart import create_pdf
 from .filters import IngredientFilter, RecipeFilter
 from .mixins import ListRetrieveModelMixin
 from .pagination import PageLimitPagination
 from .permissions import IsAuthorOrReadOnlyPermission
+from recipes.models import Favorite, Ingredient, Recipe, ShoppingCart, Tag
 from .serializers import (AvatarSerializer, FavoriteSerializer,
                           IngredientSerializer, RecipeCreateSerializer,
                           ShoppingCartSerializer, SubscribeSerializer,
-                          SubscriberSerializer, TagSerializer)
+                          TagSerializer)
+from users.models import Subscribe
 
 User = get_user_model()
 
@@ -63,29 +64,26 @@ class ProfileUserViewSet(UserViewSet):
                 )
             return Response(
                 {'errors': 'Аватар не предоставлен'},
-                status=400
+                status=HTTPStatus.BAD_REQUEST
             )
         if user.avatar:
             os.remove(user.avatar.path)
             user.avatar = None
             user.save()
-            return Response(status=204)
-        return Response({'errors': 'У Вас нет аватара'}, status=400)
+            return Response(status=HTTPStatus.NO_CONTENT)
+        return Response({'errors': 'У Вас нет аватара'},
+                        status=HTTPStatus.BAD_REQUEST)
 
     @action(['POST'], detail=True, serializer_class=SubscribeSerializer)
     def subscribe(self, request, id=None):
         user = self.get_object()
         serializer = self.get_serializer(data={
             'follower': request.user.id,
-            'following': user.id
+            'following': user.id,
         })
         serializer.is_valid(raise_exception=True)
-        subscription = serializer.save()
-        return Response(
-            SubscriberSerializer(
-                subscription, context={'request': request}).data,
-            status=status.HTTP_201_CREATED
-        )
+        serializer.save()
+        return Response(serializer.data, status=HTTPStatus.CREATED)
 
     @subscribe.mapping.delete
     def del_subscribe(self, request, id=None):
@@ -96,10 +94,10 @@ class ProfileUserViewSet(UserViewSet):
         ).first()
         if subscription:
             subscription.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return Response(status=HTTPStatus.NO_CONTENT)
         return Response(
             data={'errors': 'Вы еще не подписаны на этого пользователя'},
-            status=status.HTTP_400_BAD_REQUEST
+            status=HTTPStatus.BAD_REQUEST
         )
 
     @action(['get'],
@@ -110,7 +108,7 @@ class ProfileUserViewSet(UserViewSet):
         subscriptions = Subscribe.objects.filter(follower=user)
         paginator = PageLimitPagination()
         page = paginator.paginate_queryset(subscriptions, request)
-        serializer = SubscriberSerializer(
+        serializer = SubscribeSerializer(
             page, many=True, context={'request': request}
         )
         return paginator.get_paginated_response(serializer.data)
@@ -153,15 +151,16 @@ class RecipeViewSet(viewsets.ModelViewSet):
             recipe = Recipe.objects.get(id=pk)
         except Recipe.DoesNotExist:
             error_status = (
-                status.HTTP_404_NOT_FOUND
+                HTTPStatus.NOT_FOUND
                 if model == ShoppingCart
-                else status.HTTP_400_BAD_REQUEST
+                else HTTPStatus.BAD_REQUEST
             )
             return Response(
                 status=error_status,
                 data={'errors': 'Указанного рецепта не существует'}
             )
-
+        # я не смог это сделать не избежав ошибок
+        # (не добавляется ни в карту ни в фавориты)
         if model == ShoppingCart:
             serializer = ShoppingCartSerializer(
                 data={'user': user.id, 'recipe': recipe.id},
@@ -173,8 +172,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.data, status=HTTPStatus.CREATED)
+        return Response(serializer.errors, status=HTTPStatus.BAD_REQUEST)
 
     def remove_recipe(self, request, model, pk=None):
         user = request.user
@@ -182,26 +181,12 @@ class RecipeViewSet(viewsets.ModelViewSet):
         instance = model.objects.filter(recipe=recipe, user=user)
         if instance.exists():
             instance.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            return Response(status=HTTPStatus.NO_CONTENT)
         model_name = 'список покупок' if model == ShoppingCart else 'избранное'
         return Response(
-            status=status.HTTP_400_BAD_REQUEST,
+            status=HTTPStatus.BAD_REQUEST,
             data={f'errors: Рецепт не был добавлен в {model_name}'},
         )
-
-    def get_queryset(self):
-        queryset = Recipe.objects.all()
-        user = self.request.user
-
-        if self.request.query_params.get('is_favorited'
-                                         ) == 'true' and user.is_authenticated:
-            queryset = queryset.filter(favorites__user=user)
-
-        if self.request.query_params.get('is_in_shopping_cart'
-                                         ) == 'true' and user.is_authenticated:
-            queryset = queryset.filter(shopping_cart__user=user)
-
-        return queryset
 
     @action(methods=['POST'],
             detail=True,
@@ -237,4 +222,4 @@ class RecipeViewSet(viewsets.ModelViewSet):
         short_id = shortuuid.uuid()[:6]
         short_url = Url.objects.create(long_url=long_url, short_id=short_id)
         short_link = request.build_absolute_uri(f'/s/{short_url.short_id}/')
-        return Response({'short-link': short_link}, status=status.HTTP_200_OK)
+        return Response({'short-link': short_link}, status=HTTPStatus.OK)

@@ -13,7 +13,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', get_random_secret_key())
 
 DEBUG = os.getenv("DEBUG", 'False').lower() != 'false'
 
-ALLOWED_HOSTS = os.getenv('HOSTS', default='DEFAULT_HOST').split()
+ALLOWED_HOSTS = os.getenv('HOSTS', default='127.0.0.1 localhost').split()
 
 AUTH_USER_MODEL = 'users.Profile'
 
@@ -65,6 +65,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'foodgram.wsgi.application'
 
+# ТУТ ТОЖЕ НЕ ПОНИМАЮ ИДУ ПО ТЕОРИИ НО БД НЕ ПОДРУБАЕТСЯ, ТАК ЖЕ ПЫТАЛСЯ РЕАЛИЗОВАТЬ УСЛОВИЕ ЧТОБЫ БЫЛ ВЫБОР ЧЕТ НЕ АЛЁ
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.postgresql',
@@ -82,11 +83,6 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
-# if os.getenv('TEST_DB', 'True').lower() != 'true':
-#     DATABASES = DATABASES_POSTGRESQL
-# else:
-#     DATABASES = DATABASES_SQLITE
 
 
 AUTH_PASSWORD_VALIDATORS = [

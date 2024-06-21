@@ -12,14 +12,12 @@ class Profile(AbstractUser):
     REQUIRED_FIELDS = ['first_name', 'last_name', 'username']
 
     first_name = models.CharField(
-        ('first name'),
-        max_length=FIRST_NAME_LENGTH,
-        blank=False
+        'first_name',
+        max_length=FIRST_NAME_LENGTH
     )
     last_name = models.CharField(
-        ('last name'),
-        max_length=LAST_NAME_LENGTH,
-        blank=False
+        'last_name',
+        max_length=LAST_NAME_LENGTH
     )
     email = models.EmailField(
         'Электронная почта',

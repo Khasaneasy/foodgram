@@ -1,7 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core import validators
 from django.db import models
-from django.db.models import Exists, OuterRef
 
 from .constants import (
     COOKING_TIME, INGREDIENT_AMOUNT,
@@ -42,35 +41,13 @@ class Ingredient(models.Model):
         verbose_name = 'Ингридиент'
         verbose_name_plural = 'Ингридиенты'
         ordering = ['name']
-        unique_together = ('name', 'measurement_unit')
+        constraints = [
+            models.UniqueConstraint(fields=['name', 'measurement_unit'],
+                                    name='unique_ingredient')
+        ]
 
     def __str__(self):
         return f'{self.name}, {self.measurement_unit}'
-
-
-class RecipeQuerySet(models.QuerySet):
-    def get_is_favorited_is_in_shopping_cart(self, request_user):
-        if request_user.is_authenticated:
-            self = self.annotate(
-                is_favorited=Exists(
-                    Favorite.objects.filter(
-                        user=request_user,
-                        recipe=OuterRef('pk')
-                    )
-                ),
-                is_in_shopping_cart=Exists(
-                    ShoppingCart.objects.filter(
-                        user=request_user,
-                        recipe=OuterRef('pk')
-                    )
-                ),
-            )
-        else:
-            self = self.annotate(
-                is_favorited=Exists(Favorite.objects.none()),
-                is_in_shopping_cart=Exists(ShoppingCart.objects.none()),
-            )
-        return self
 
 
 class Recipe(models.Model):
@@ -85,7 +62,7 @@ class Recipe(models.Model):
         User,
         on_delete=models.CASCADE,
         null=True,
-        related_name='authored_recipes',
+        related_name='recipes',
         verbose_name='Автор'
     )
     ingredients = models.ManyToManyField(
@@ -112,7 +89,6 @@ class Recipe(models.Model):
         auto_now_add=True,
         null=True
     )
-    objects = RecipeQuerySet.as_manager()
 
     class Meta:
         verbose_name = 'Рецепт'
@@ -132,8 +108,9 @@ class RecipeIngredient(models.Model):
     ingredient = models.ForeignKey(
         Ingredient,
         on_delete=models.CASCADE,
-        related_name='ingredient_recipes'
+        related_name='recipe_ingredients'
     )
+    # ingredient_recipes
     amount = models.PositiveSmallIntegerField(
         default=COOKING_TIME,
         validators=[
@@ -160,13 +137,14 @@ class ShoppingCart(models.Model):
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
+        related_name='shopping_carts',
         verbose_name='Пользователь',
         null=True
     )
     recipe = models.ForeignKey(
         Recipe,
         on_delete=models.CASCADE,
-        related_name='shopping_cart',
+        related_name='shopping_carts',
         verbose_name='Рецепт'
     )
 
@@ -187,6 +165,7 @@ class Favorite(models.Model):
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
+        related_name='favorites',
         verbose_name='Пользователь',
         null=True
     )

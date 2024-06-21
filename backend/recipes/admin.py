@@ -8,6 +8,7 @@ from .models import (
 class RecipeIngredientInline(admin.TabularInline):
     model = RecipeIngredient
     extra = 1
+    min_num = 1
 
 
 @admin.register(Recipe)
@@ -25,7 +26,7 @@ class RecipeAdmin(admin.ModelAdmin):
 class IngredientAdmin(admin.ModelAdmin):
     list_display = ('name', 'measurement_unit',)
     list_filter = ('name',)
-    search_fields = ('name__icontains', )
+    search_fields = ('name__icontains',)
 
 
 @admin.register(Tag)
