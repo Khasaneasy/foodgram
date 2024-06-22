@@ -1,4 +1,5 @@
 import base64
+from http import HTTPStatus
 import os
 import shortuuid
 
@@ -7,10 +8,9 @@ from django.core.files.base import ContentFile
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet
-from http import HTTPStatus
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import (IsAuthenticated,
+from rest_framework.permissions import (SAFE_METHODS, IsAuthenticated,
                                         IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
 from shortener.models import Url
@@ -24,7 +24,7 @@ from recipes.models import Favorite, Ingredient, Recipe, ShoppingCart, Tag
 from .serializers import (AvatarSerializer, FavoriteSerializer,
                           IngredientSerializer, RecipeCreateSerializer,
                           ShoppingCartSerializer, SubscribeSerializer,
-                          TagSerializer)
+                          RecipeSerializer, TagSerializer)
 from users.models import Subscribe
 
 User = get_user_model()
@@ -142,10 +142,15 @@ class RecipeViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_class = RecipeFilter
 
+    def get_serializer_class(self):
+        if self.request.method in SAFE_METHODS:
+            return RecipeSerializer
+        return RecipeCreateSerializer
+
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
-    def add_recipe(self, request, model, pk=None):
+    def add_recipe(self, request, model, serializer, pk=None):
         user = self.request.user
         try:
             recipe = Recipe.objects.get(id=pk)
@@ -159,18 +164,11 @@ class RecipeViewSet(viewsets.ModelViewSet):
                 status=error_status,
                 data={'errors': 'Указанного рецепта не существует'}
             )
-        # я не смог это сделать не избежав ошибок
-        # (не добавляется ни в карту ни в фавориты)
-        if model == ShoppingCart:
-            serializer = ShoppingCartSerializer(
-                data={'user': user.id, 'recipe': recipe.id},
-                context={'request': request})
-        else:
-            serializer = FavoriteSerializer(
-                data={'user': user.id, 'recipe': recipe.id},
-                context={'request': request})
 
-        if serializer.is_valid():
+        serializer = serializer(data={'user': user.id, 'recipe': recipe.id},
+                                context={'request': request})
+
+        if serializer.is_valid(raise_exception=True):
             serializer.save()
             return Response(serializer.data, status=HTTPStatus.CREATED)
         return Response(serializer.errors, status=HTTPStatus.BAD_REQUEST)
@@ -188,15 +186,34 @@ class RecipeViewSet(viewsets.ModelViewSet):
             data={f'errors: Рецепт не был добавлен в {model_name}'},
         )
 
-    @action(methods=['POST'],
-            detail=True,
-            permission_classes=(IsAuthenticated,))
-    def shopping_cart(self, request, pk=None):
-        return self.add_recipe(request, ShoppingCart, pk)
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[IsAuthenticated])
+    def shopping_cart(self, request, pk):
+        context = {'request': request}
+        data = {
+            'user': request.user.id,
+            'recipe': pk
+        }
+        serializer = ShoppingCartSerializer(data=data, context=context)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=HTTPStatus.CREATED)
 
     @shopping_cart.mapping.delete
-    def delete_shopping_cart(self, request, pk=None):
-        return self.remove_recipe(request, ShoppingCart, pk)
+    def delete_shopping_cart(self, request, pk):
+        recipe = get_object_or_404(Recipe, id=pk)
+        deleted_count, _ = ShoppingCart.objects.filter(
+            user=request.user,
+            recipe=recipe
+        ).delete()
+
+        if deleted_count == 0:
+            return Response({'errors': 'Рецепт не найден в вашей корзине'},
+                            status=HTTPStatus.BAD_REQUEST)
+
+        return Response(status=HTTPStatus.NO_CONTENT)
 
     @action(['get'],
             permission_classes=(permissions.IsAuthenticated,),
@@ -205,15 +222,34 @@ class RecipeViewSet(viewsets.ModelViewSet):
         file = create_pdf(request.user)
         return file
 
-    @action(methods=['POST'],
-            detail=True,
-            permission_classes=(IsAuthenticated,))
-    def favorite(self, request, pk=None):
-        return self.add_recipe(request, Favorite, pk)
+    @action(
+        detail=True,
+        methods=['post'],
+        permission_classes=[IsAuthenticated])
+    def favorite(self, request, pk):
+        context = {'request': request}
+        data = {
+            'user': request.user.id,
+            'recipe': pk
+        }
+        serializer = FavoriteSerializer(data=data, context=context)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=HTTPStatus.CREATED)
 
     @favorite.mapping.delete
-    def del_favorite(self, request, pk=None):
-        return self.remove_recipe(request, Favorite, pk)
+    def delete_favorite(self, request, pk):
+        recipe = get_object_or_404(Recipe, id=pk)
+        deleted_count, _ = Favorite.objects.filter(
+            user=request.user,
+            recipe=recipe
+        ).delete()
+
+        if deleted_count == 0:
+            return Response({'errors': 'Рецепт не найден в вашем избранном'},
+                            status=HTTPStatus.BAD_REQUEST)
+
+        return Response(status=HTTPStatus.NO_CONTENT)
 
     @action(detail=True, methods=['get'], url_path='get-link')
     def get_link(self, request, pk=None):

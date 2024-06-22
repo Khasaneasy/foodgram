@@ -1,10 +1,9 @@
 from drf_base64.fields import Base64ImageField
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from djoser.serializers import UserSerializer
 from rest_framework.relations import PrimaryKeyRelatedField
 from rest_framework import serializers
-
-from djoser.serializers import UserSerializer
 
 from .constants import COOK_TIME, COOKING_QUANITY, INGREDIENT_QUANITY
 from recipes.models import (
@@ -96,16 +95,15 @@ class SubscriberSerializer(ProfileUserSerializer):
             'recipes',
             'recipes_count'
         )
-    # так же тут не смог разобраться , даже дебаг не смог запустить так как
-    # начинает ругаться на 7ю строку файла как обойти и продолжить дебажить не
-    # понял в пачке тихо ответы не откуда брать.
 
     def get_recipes(self, obj):
-        recipes_limit = self.context.get('recipes_limit')
-        recipes = Recipe.objects.filter(author=obj)
+        request = self.context.get('request')
+        recipes_limit = request.query_params.get('recipes_limit')
+        recipes = obj.recipes.all()
         if recipes_limit:
-            recipes = recipes[: int(recipes_limit)]
-        return RecipeDetailSerializer(recipes, many=True).data
+            recipes = recipes[:int(recipes_limit)]
+        return RecipeDetailSerializer(recipes,
+                                      context=self.context, many=True).data
 
     def get_recipes_count(self, obj):
         return obj.recipes.count()
@@ -278,7 +276,8 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
 
         if data.get('cooking_time', COOKING_QUANITY) < COOK_TIME:
             raise serializers.ValidationError(
-                'Время готовки должно быть больше {COOK_TIME} минуты.'
+                'Время готовки должно быть больше минуты'
+                f'{COOK_TIME}.'
             )
 
         return data

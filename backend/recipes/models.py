@@ -110,7 +110,6 @@ class RecipeIngredient(models.Model):
         on_delete=models.CASCADE,
         related_name='recipe_ingredients'
     )
-    # ingredient_recipes
     amount = models.PositiveSmallIntegerField(
         default=COOKING_TIME,
         validators=[

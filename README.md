@@ -1,9 +1,3 @@
-# Игорь зная что сюда заглянешь, что мне делать с этим фильтром :D????(RecipeFilter)
-
-Находясь в папке infra, выполните команду docker-compose up. При выполнении этой команды контейнер frontend, описанный в docker-compose.yml, подготовит файлы, необходимые для работы фронтенд-приложения, а затем прекратит свою работу.
-
-По адресу http://localhost изучите фронтенд веб-приложения, а по адресу http://localhost/api/docs/ — спецификацию API.
-
 # Продуктовый помощник Foodgram - дипломный проект студента 77 когорты Яндекс.Практикум 
 
 После запуска проекта, он будет доступен по адресу http://127.0.0.1(локально)
@@ -14,32 +8,41 @@
 Сервис «Список покупок» позволит пользователю создавать список продуктов, которые нужно купить для приготовления выбранных блюд согласно рецепта/ов.
 
 
-### Запуск проекта локально
-
-Для формирования базы из миграций, финальной настройки и заполнении базы тегами и ингридиентами,
-а так же подтянуть статику, и создаем суперюзера:
-
-```bash
-python manage.py makemigrations
+- Создать и запустить контейнеры Docker, выполнить команду на сервере
+*(версии команд "docker compose" или "docker-compose" отличаются в зависимости от установленной версии Docker Compose):*
+```
+sudo docker compose up
 ```
 
-```bash
-backend python manage.py migrate
+- После успешной сборки выполнить миграции:
+```
+sudo docker compose exec backend python manage.py migrate
 ```
 
-```bash
-python manage.py createsuperuser
+- Создать суперпользователя:
+```
+sudo docker compose exec backend python manage.py createsuperuser
 ```
 
-Дополнительно можно наполнить DB ингредиентами и тэгами:
-
-```bash
-python manage.py add_tags
+- Собрать статику:
+```
+sudo docker compose exec backend python manage.py collectstatic --noinput
 ```
 
-```bash
-backend python manage.py add_ingrs
+- Наполнить базу данных содержимым:
 ```
+sudo docker compose exec backend python manage.py importcsv
+```
+
+- Для остановки контейнеров Docker:
+```
+sudo docker compose down -v      # с их удалением
+sudo docker compose stop         # без удаления
+
+- После запуска проект будут доступен по адресу: [http://localhost/](http://localhost/)
+
+
+- Документация будет доступна по адресу: [http://localhost/api/docs/](http://localhost/api/docs/)
 
 #### В сервисе доступны следующие взаимодействия:
 - Эндпоинты юзеров
@@ -69,6 +72,27 @@ backend python manage.py add_ingrs
     - users/subscriptions/ GET
     - users/{id}/subscribe/ POST, DELETE
 
+Используемые библиотеки:
+
+flake8==6.0.0
+Django==4.2.13
+djangorestframework>=3.15.1
+sqlparse=0.4.4
+pytz=2024.1
+djangorestframework-simplejwt>=4.7.2
+djoser=2.1.0
+python-dotenv==1.0.1
+Pillow==10.3.0
+django-filter==24.2
+drf-extra-fields==3.7.0
+reportlab==4.2.0
+drf_base64==2.0
+fpdf==1.7.2
+django-cors-headers==3.13.0
+psycopg2-binary==2.9.3 
+shortener==0.2.1
+shortuuid==1.0.13
+gunicorn==20.1.0
 
 Версия Python:
 Python 3.9.10
