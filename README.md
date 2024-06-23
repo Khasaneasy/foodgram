@@ -1,6 +1,10 @@
-# Продуктовый помощник Foodgram - дипломный проект студента 77 когорты Яндекс.Практикум 
+[![Main Kittygram workflow](https://github.com/Khasaneasy/kittygram_final/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/Khasaneasy/kittygram_final/actions/workflows/main.yml)
 
-После запуска проекта, он будет доступен по адресу http://127.0.0.1(локально)
+# Продуктовый помощник Foodgram - дипломный проект студента 77 когорты Яндекс.Практикум 
+- После запуска проект будут доступен по адресу: [здесь](http://foodhas.zapto.org)
+
+
+- Документация будет доступна по адресу: [здесь](http://foodhas.zapto.org/api/docs/)
 
 ## Описание проекта Foodgram
 
@@ -8,31 +12,50 @@
 Сервис «Список покупок» позволит пользователю создавать список продуктов, которые нужно купить для приготовления выбранных блюд согласно рецепта/ов.
 
 
-- Создать и запустить контейнеры Docker, выполнить команду на сервере
-*(версии команд "docker compose" или "docker-compose" отличаются в зависимости от установленной версии Docker Compose):*
+## Как развернуть
+1. Скачайте docker-compose.yml из репозитория https://github.com/Khasaneasy/foodgram/blob/main/docker-compose.production.yml
+2. Создайте файл .env
 ```
-sudo docker compose up
+touch .env
 ```
-
-- После успешной сборки выполнить миграции:
+3. Создайте файл с переменными окружения
 ```
-sudo docker compose exec backend python manage.py migrate
-```
-
-- Создать суперпользователя:
-```
-sudo docker compose exec backend python manage.py createsuperuser
-```
-
-- Собрать статику:
-```
-sudo docker compose exec backend python manage.py collectstatic --noinput
+POSTGRES_DB=<БазаДанных>
+POSTGRES_USER=<имя пользователя>
+POSTGRES_PASSWORD=<пароль>
+DB_NAME=<имя БазыДанных>
+DB_HOST=db
+DB_PORT=5432
+SECRET_KEY=<ключ Django>
+DEBUG=<DEBUG True/False>
+ALLOWED_HOSTS=<разрешенные хосты>
 ```
 
-- Для остановки контейнеров Docker:
+4. Запустите Dockercompose
 ```
-sudo docker compose down -v      # с их удалением
-sudo docker compose stop         # без удаления
+sudo docker compose -f docker-compose.yml pull
+sudo docker compose -f docker-compose.yml down
+sudo docker compose -f docker-compose.yml up -d
+```
+5. Сделайте миграции и соберите статику
+```
+sudo docker compose -f docker-compose.yml exec backend python manage.py migrate
+sudo docker compose -f docker-compose.yml exec backend python manage.py collectstatic
+sudo docker compose -f docker-compose.yml exec backend cp -r /app/collected_static/. /backend_static/static/ 
+```
+
+## Автодеплой на Git Hub Action
+Добавьте перменные в Secrets
+```
+DOCKER_PASSWORD - пароль от Docker Hub
+DOCKER_USERNAME - имя пользователя Docker Hub
+HOST - ip сервера
+SSH_KEY - ключ ssh для доступа к удаленному серверу
+SSH_PASSPHRASE - пароль ssh
+TELEGRAM_TO - id пользователя TELEGRAM
+TELEGRAM_TOKEN - TELEGRAM токен
+USER - имя пользователя сервера
+```
 
 #### В сервисе доступны следующие взаимодействия:
 - Эндпоинты юзеров
@@ -86,11 +109,6 @@ gunicorn==20.1.0
 
 Версия Python:
 Python 3.9.10
-
-- После запуска проект будут доступен по адресу: [http://localhost/](http://localhost/)
-
-
-- Документация будет доступна по адресу: [http://localhost/api/docs/](http://localhost/api/docs/)
 
 Автор:
 
