@@ -29,20 +29,10 @@ sudo docker compose exec backend python manage.py createsuperuser
 sudo docker compose exec backend python manage.py collectstatic --noinput
 ```
 
-- Наполнить базу данных содержимым:
-```
-sudo docker compose exec backend python manage.py importcsv
-```
-
 - Для остановки контейнеров Docker:
 ```
 sudo docker compose down -v      # с их удалением
 sudo docker compose stop         # без удаления
-
-- После запуска проект будут доступен по адресу: [http://localhost/](http://localhost/)
-
-
-- Документация будет доступна по адресу: [http://localhost/api/docs/](http://localhost/api/docs/)
 
 #### В сервисе доступны следующие взаимодействия:
 - Эндпоинты юзеров
@@ -72,9 +62,9 @@ sudo docker compose stop         # без удаления
     - users/subscriptions/ GET
     - users/{id}/subscribe/ POST, DELETE
 
+
 Используемые библиотеки:
 
-flake8==6.0.0
 Django==4.2.13
 djangorestframework>=3.15.1
 sqlparse=0.4.4
@@ -96,6 +86,11 @@ gunicorn==20.1.0
 
 Версия Python:
 Python 3.9.10
+
+- После запуска проект будут доступен по адресу: [http://localhost/](http://localhost/)
+
+
+- Документация будет доступна по адресу: [http://localhost/api/docs/](http://localhost/api/docs/)
 
 Автор:
 

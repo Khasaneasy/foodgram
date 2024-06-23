@@ -1,7 +1,7 @@
 import base64
-from http import HTTPStatus
 import os
 import shortuuid
+from http import HTTPStatus
 
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
@@ -20,11 +20,11 @@ from .filters import IngredientFilter, RecipeFilter
 from .mixins import ListRetrieveModelMixin
 from .pagination import PageLimitPagination
 from .permissions import IsAuthorOrReadOnlyPermission
-from recipes.models import Favorite, Ingredient, Recipe, ShoppingCart, Tag
 from .serializers import (AvatarSerializer, FavoriteSerializer,
                           IngredientSerializer, RecipeCreateSerializer,
                           ShoppingCartSerializer, SubscribeSerializer,
                           RecipeSerializer, TagSerializer)
+from recipes.models import Favorite, Ingredient, Recipe, ShoppingCart, Tag
 from users.models import Subscribe
 
 User = get_user_model()
@@ -168,10 +168,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
         serializer = serializer(data={'user': user.id, 'recipe': recipe.id},
                                 context={'request': request})
 
-        if serializer.is_valid(raise_exception=True):
-            serializer.save()
-            return Response(serializer.data, status=HTTPStatus.CREATED)
-        return Response(serializer.errors, status=HTTPStatus.BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=HTTPStatus.CREATED)
 
     def remove_recipe(self, request, model, pk=None):
         user = request.user
@@ -209,7 +208,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             recipe=recipe
         ).delete()
 
-        if deleted_count == 0:
+        if not deleted_count == 0:
             return Response({'errors': 'Рецепт не найден в вашей корзине'},
                             status=HTTPStatus.BAD_REQUEST)
 
@@ -245,7 +244,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             recipe=recipe
         ).delete()
 
-        if deleted_count == 0:
+        if not deleted_count == 0:
             return Response({'errors': 'Рецепт не найден в вашем избранном'},
                             status=HTTPStatus.BAD_REQUEST)
 
