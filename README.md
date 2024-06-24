@@ -43,6 +43,11 @@ sudo docker compose -f docker-compose.yml exec backend python manage.py migrate
 sudo docker compose -f docker-compose.yml exec backend python manage.py collectstatic
 sudo docker compose -f docker-compose.yml exec backend cp -r /app/collected_static/. /backend_static/static/ 
 ```
+6. Наполняем базу
+```
+sudo docker compose -f docker-compose.yml exec backend python manage.py add_ingrs
+sudo docker compose -f docker-compose.yml exec backend python manage.py add_tags
+```
 
 ## Автодеплой на Git Hub Action
 Добавьте перменные в Secrets

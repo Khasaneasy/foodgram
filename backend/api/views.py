@@ -137,7 +137,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
     pagination_class = PageLimitPagination
     permission_classes = (
         IsAuthorOrReadOnlyPermission,
-        permissions.IsAuthenticatedOrReadOnly,
+        IsAuthenticatedOrReadOnly,
     )
     filter_backends = [DjangoFilterBackend]
     filterset_class = RecipeFilter
@@ -150,40 +150,17 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
-    def add_recipe(self, request, model, serializer, pk=None):
-        user = self.request.user
-        try:
-            recipe = Recipe.objects.get(id=pk)
-        except Recipe.DoesNotExist:
-            error_status = (
-                HTTPStatus.NOT_FOUND
-                if model == ShoppingCart
-                else HTTPStatus.BAD_REQUEST
-            )
-            return Response(
-                status=error_status,
-                data={'errors': 'Указанного рецепта не существует'}
-            )
+    def _delete_item(self, model_class, user, recipe, error_message):
+        deleted_count, _ = model_class.objects.filter(
+            user=user,
+            recipe=recipe
+        ).delete()
 
-        serializer = serializer(data={'user': user.id, 'recipe': recipe.id},
-                                context={'request': request})
+        if not deleted_count:
+            return Response({'errors': error_message},
+                            status=HTTPStatus.BAD_REQUEST)
 
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data, status=HTTPStatus.CREATED)
-
-    def remove_recipe(self, request, model, pk=None):
-        user = request.user
-        recipe = get_object_or_404(Recipe, id=pk)
-        instance = model.objects.filter(recipe=recipe, user=user)
-        if instance.exists():
-            instance.delete()
-            return Response(status=HTTPStatus.NO_CONTENT)
-        model_name = 'список покупок' if model == ShoppingCart else 'избранное'
-        return Response(
-            status=HTTPStatus.BAD_REQUEST,
-            data={f'errors: Рецепт не был добавлен в {model_name}'},
-        )
+        return Response(status=HTTPStatus.NO_CONTENT)
 
     @action(
         detail=True,
@@ -203,16 +180,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
     @shopping_cart.mapping.delete
     def delete_shopping_cart(self, request, pk):
         recipe = get_object_or_404(Recipe, id=pk)
-        deleted_count, _ = ShoppingCart.objects.filter(
-            user=request.user,
-            recipe=recipe
-        ).delete()
-
-        if not deleted_count == 0:
-            return Response({'errors': 'Рецепт не найден в вашей корзине'},
-                            status=HTTPStatus.BAD_REQUEST)
-
-        return Response(status=HTTPStatus.NO_CONTENT)
+        return self._delete_item(ShoppingCart, request.user, recipe,
+                                 'Рецепт не найден в вашей корзине')
 
     @action(['get'],
             permission_classes=(permissions.IsAuthenticated,),
@@ -239,16 +208,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
     @favorite.mapping.delete
     def delete_favorite(self, request, pk):
         recipe = get_object_or_404(Recipe, id=pk)
-        deleted_count, _ = Favorite.objects.filter(
-            user=request.user,
-            recipe=recipe
-        ).delete()
-
-        if not deleted_count == 0:
-            return Response({'errors': 'Рецепт не найден в вашем избранном'},
-                            status=HTTPStatus.BAD_REQUEST)
-
-        return Response(status=HTTPStatus.NO_CONTENT)
+        return self._delete_item(Favorite, request.user, recipe,
+                                 'Рецепт не найден в вашем избранном')
 
     @action(detail=True, methods=['get'], url_path='get-link')
     def get_link(self, request, pk=None):
